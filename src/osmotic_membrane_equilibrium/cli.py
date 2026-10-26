@@ -9,6 +9,7 @@ from .experiments import (
 )
 from .model import System
 from .solver import solve
+from .svg import write_svg
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,6 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
         child.add_argument("--max-iterations", type=int, default=200)
         child.add_argument("--json", action="store_true", help="Print SI-unit result records as JSON.")
         child.add_argument("--output", type=Path, help="Write all SI-unit metrics to CSV.")
+        if command == "solve":
+            child.add_argument("--svg", type=Path, help="Write a standalone compartment and pressure-balance report.")
         if command != "solve":
             child.add_argument("--points", type=int, default=13)
         if command == "sweep-temperature":
@@ -70,6 +73,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "solve" and args.svg and args.output:
+            if args.svg.resolve() == args.output.resolve():
+                raise ValueError("SVG and CSV output paths must be different")
         system = System(
             volume_left_m3=args.left_volume_ml * 1e-6,
             volume_right_m3=args.right_volume_ml * 1e-6,
@@ -87,7 +93,10 @@ def main(argv: list[str] | None = None) -> int:
             max_iterations=args.max_iterations,
         )
         if args.command == "solve":
-            records = [result_record(system, solve(system, **options))]
+            result = solve(system, **options)
+            records = [result_record(system, result)]
+            if args.svg:
+                write_svg(args.svg, system, result)
         elif args.command == "sweep-temperature":
             records = sweep_temperature(system, linear_values(args.start_k, args.stop_k, args.points), **options)
         else:
@@ -104,6 +113,8 @@ def main(argv: list[str] | None = None) -> int:
                   f"maximum absolute residual {max(abs(row['final_residual_pa']) for row in records):.6g} Pa")
         if args.output and not args.json:
             print(f"CSV: {args.output}")
+        if args.command == "solve" and args.svg and not args.json:
+            print(f"SVG: {args.svg}")
         if any(row["status"] in {"max_iterations", "precision_limit"} for row in records):
             return 1
         if any(row["status"] == "dry_boundary" for row in records):
