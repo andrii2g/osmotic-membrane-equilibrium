@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.scripts]
+osmotic-equilibrium = "osmotic_membrane_equilibrium.cli:main"
+
 [project.urls]
 Repository = "https://github.com/andrii2g/osmotic-membrane-equilibrium"
 
